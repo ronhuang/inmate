@@ -6,3 +6,6 @@ api_version: 1
 handlers:
 - url: /
   script: home.py
+
+- url: /calennar/.*
+  script: calennar.py
