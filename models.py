@@ -45,28 +45,34 @@ class Seminar(db.Model):
         try:
             result = urlfetch.fetch(self.url)
         except Exception, e:
-            logging.error(e)
+            logging.error("%s @ %s" % (e, self.url))
             return
 
         if result.status_code != 200:
             logging.error("Returned %s when fetching %s" % (result.status_code, self.url))
             return
 
+        s = result.content
         try:
-            encoding = chardet.detect(result.content)['encoding']
-            s = unicode(result.content, encoding)
+            encoding = chardet.detect(s)['encoding']
+            s = unicode(s, encoding)
             s = re.compile("\r\n", re.M).sub("\n", s) # dos2unix
+        except Exception, e:
+            logging.error("%s @ %s" % (e, self.url))
+            return
 
-            # Notes:
-            # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
-            # Ignore case
-            p = re.compile("^VENUE : (?P<venue>.+?)\n\n.*^(?P<info>(ABS?TRA?CT|SYNOPSIS).+)",
-                           re.M | re.S | re.I)
-            m = p.search(s)
+        # Notes:
+        # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
+        # Ignore case
+        p = re.compile("VENUE\s*:\s*(?P<venue>.+?)\n\n.*(?P<info>(ABS?TRA?CT|SYNOPSIS).+)",
+                       re.M | re.S | re.I)
+        m = p.search(s)
+
+        try:
             venue = m.group("venue").strip()
             self.venue = re.compile("\n\s+", re.M).sub("\n", venue) # trim space in each line
             self.info = m.group("info").strip()
         except:
-            logging.warning("Can't retrive venue and info from %s\n%s" % (self.url, s))
+            logging.warning("Can't retrive venue or info from %s\n%s" % (self.url, s))
 
         self.put()
