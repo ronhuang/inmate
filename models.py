@@ -38,7 +38,7 @@ class Seminar(db.Model):
     title = db.StringProperty(required=True)
     speaker = db.TextProperty(required=True)
     venue = db.StringProperty(multiline=True)
-    abstract = db.TextProperty()
+    info = db.TextProperty()
 
     def fetch_and_put(self):
         result = None
@@ -56,22 +56,17 @@ class Seminar(db.Model):
             encoding = chardet.detect(result.content)['encoding']
             s = unicode(result.content, encoding)
             s = re.compile("\r\n", re.M).sub("\n", s) # dos2unix
-            s = re.compile("\n\s+", re.M).sub("\n", s) # trim space in each line
+
             # Notes:
-            # SYNOPSIS and ABSTRACT are interchangable
-            # BIODATA and BIO are interchangable
-            # Some misses Chaired by
-            # Some misses BIODATA
-            # Some uses Abstract (case different)
-            # Some uses ABTRACT
-            p = re.compile("^VENUE : (((?P<v1>.+)Chaired by.*)|(?P<v2>.+))(ABS?TRACT|SYNOPSIS):(((?P<a1>.+)(BIODATA|BIO):)|(?P<a2>.+))",
+            # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
+            # Ignore case
+            p = re.compile("^VENUE : (?P<venue>.+?)\n\n.*^(?P<info>(ABS?TRA?CT|SYNOPSIS).+)",
                            re.M | re.S | re.I)
             m = p.search(s)
-            self.venue = (m.group("v1") or m.group("v2")).strip()
-            self.abstract = (m.group("a1") or m.group("a2")).strip()
+            venue = m.group("venue").strip()
+            self.venue = re.compile("\n\s+", re.M).sub("\n", venue) # trim space in each line
+            self.info = m.group("info").strip()
         except:
-            logging.error("Can't retrive venue and abstract from %s\n%s" % (self.url, s))
-
-        #print '\n'.join([self.venue, self.abstract])
+            logging.warning("Can't retrive venue and info from %s\n%s" % (self.url, s))
 
         self.put()
