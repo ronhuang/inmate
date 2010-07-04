@@ -26,11 +26,54 @@
 
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
+from google.appengine.api import urlfetch
+import logging
+from BeautifulSoup import BeautifulSoup, SoupStrainer
 
 
 class NusCsHandler(webapp.RequestHandler):
     def get(self):
-        self.response.out.write('NUS CS')
+        # Read HTML from seminar page.
+        url = "http://www.comp.nus.edu.sg/cs/csseminar.html"
+        result = None
+        try:
+            result = urlfetch.fetch(url)
+        except urlfetch.InvalidURLError, e:
+            logging.error(e)
+            self.error(500)
+        except urlfetch.DownloadError, e:
+            logging.error(e)
+            self.error(500)
+        except urlfetch.ResponseTooLargeError, e:
+            logging.error(e)
+            self.error(500)
+        except:
+            self.error(500)
+
+        if result.status_code != 200:
+            self.error(result.status_code)
+
+        # Parse content of the page.
+        entries = SoupStrainer('tr', bgcolor="#FFFFFF")
+        soup = BeautifulSoup(result.content,
+                             parseOnlyThese=entries)
+        for row in soup:
+            try:
+                dt = row.contents[0].p
+                date = dt.contents[0].extract()
+                time = dt.contents[1].extract()
+
+                info = row.contents[1].p
+                url = info.a['href']
+                title = info.a.string.extract()
+                name = info.contents[2].extract()
+                institute = info.contents[3].extract()
+
+                #print '\n'.join([date, time, url, title, name, institute])
+                #break
+            except Exception, e:
+                logging.error("Error %s @ %s" % (e, unicode(row)))
+                continue
 
 
 class NusEceHandler(webapp.RequestHandler):
