@@ -27,8 +27,12 @@
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
 from google.appengine.api import urlfetch
+from google.appengine.ext import deferred
 import logging
+import re
+from datetime import datetime
 from BeautifulSoup import BeautifulSoup, SoupStrainer
+from models import Seminar
 
 
 class NusCsHandler(webapp.RequestHandler):
@@ -54,26 +58,55 @@ class NusCsHandler(webapp.RequestHandler):
             self.error(result.status_code)
 
         # Parse content of the page.
+        split_time = re.compile("(.*) - (.*)")
         entries = SoupStrainer('tr', bgcolor="#FFFFFF")
         soup = BeautifulSoup(result.content,
                              parseOnlyThese=entries)
+        start = ""
+        end = ""
+        url = ""
+        title = ""
+        speaker = ""
         for row in soup:
             try:
                 dt = row.contents[0].p
-                date = dt.contents[0].extract()
-                time = dt.contents[1].extract()
+                date = unicode(dt.contents[0].extract())
+                time = unicode(dt.contents[1].extract())
+                m = split_time.search(time)
+                start = " ".join([date, m.group(1)])
+                end = " ".join([date, m.group(2)])
 
                 info = row.contents[1].p
                 url = info.a['href']
-                title = info.a.string.extract()
-                name = info.contents[2].extract()
-                institute = info.contents[3].extract()
-
-                #print '\n'.join([date, time, url, title, name, institute])
-                #break
+                title = unicode(info.a.string.extract())
+                speaker = info.getText(separator="\n") # rest are speaker info
             except Exception, e:
-                logging.error("Error %s @ %s" % (e, unicode(row)))
+                logging.error("%s @ %s" % (e, url))
                 continue
+
+            # check if already exist
+            q = Seminar.gql("WHERE url = :url", url=url)
+            if q.count() > 0:
+                continue
+
+            # convert date time.
+            # sample: July 16, 2010 10.00am
+            try:
+                start = datetime.strptime(start, "%B %d, %Y %I.%M%p")
+                end = datetime.strptime(end, "%B %d, %Y %I.%M%p")
+            except ValueError, e:
+                logging.error("%s @ %s" % (e, url))
+                continue
+
+            s = Seminar(
+                start = start,
+                end = end,
+                title = title,
+                speaker = speaker,
+                url = url
+                )
+
+            deferred.defer(s.fetch_and_put)
 
 
 class NusEceHandler(webapp.RequestHandler):

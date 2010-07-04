@@ -9,3 +9,7 @@ handlers:
 
 - url: /calennar/.*
   script: calennar.py
+
+- url: /_ah/queue/deferred
+  script: $PYTHON_LIB/google/appengine/ext/deferred/handler.py
+  login: admin
