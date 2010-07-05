@@ -153,8 +153,7 @@ class NusCsHandler(webapp.RequestHandler):
             event.add('dtstamp', s.stamp)
             event.add('location', s.venue)
             event.add('url', s.url)
-            event.add('description', s.intro)
-            event.add('comment', s.speaker)
+            event.add('description', s.speaker)
             event.add('categories', 'seminar')
             event.add('class', 'PUBLIC')
 

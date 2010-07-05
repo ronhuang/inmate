@@ -47,7 +47,6 @@ class Seminar(db.Model):
     title = db.StringProperty(required=True)
     speaker = db.TextProperty(required=True)
     venue = db.StringProperty(multiline=True)
-    intro = db.TextProperty()
 
     def fetch_and_put(self):
         # fetch
@@ -88,24 +87,6 @@ class Seminar(db.Model):
             self.venue = m.group("venue").strip()
         else:
             logging.warning("Can't retrive venue from %s\n%s" % (self.url, s))
-
-        # Extract intro with several methods
-        # Try intro which begins with the following keywords
-        # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
-        p = re.compile("(?P<intro>^(ABS?TRA?CT|SYNOPSIS).+)", re.M | re.S | re.I)
-        m = p.search(s)
-        if not m:
-            # take whatever below "Chaired by"
-            p = re.compile("^Chaired by[^\n]+\n(?P<intro>.+)", re.M | re.S | re.I)
-            m = p.search(s)
-        if not m:
-            # assume intro is the far away from the others.
-            p = re.compile("\n\n\n\n\n(?P<intro>.+)", re.M | re.S | re.I)
-            m = p.search(s)
-        if m:
-            self.intro = m.group("intro").strip()
-        else:
-            logging.warning("Can't retrive intro from %s\n%s" % (self.url, s))
 
         self.put()
         memcache.set("nuscs_up_to_date", False)
