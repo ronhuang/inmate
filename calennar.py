@@ -28,13 +28,15 @@ from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
 from google.appengine.api import urlfetch
 from google.appengine.ext import deferred
+from google.appengine.api import memcache
 import logging
 import re
 from datetime import datetime, tzinfo, timedelta
 from BeautifulSoup import BeautifulSoup, SoupStrainer
-from models import Seminar
+from models import Seminar, Cache
 from icalendar import Calendar, Event
 import utils
+import chardet
 
 
 class UpdateHandler(webapp.RequestHandler):
@@ -72,6 +74,18 @@ class UpdateHandler(webapp.RequestHandler):
         speaker = ""
         for row in soup:
             try:
+                info = row.contents[1].p
+                url = info.a['href']
+
+                # check if already exist
+                exist = memcache.get(url)
+                if exist:
+                    continue
+                q = Seminar.gql("WHERE url = :url", url=url)
+                if q.count() > 0:
+                    memcache.add(url, True)
+                    continue
+
                 dt = row.contents[0].p
                 date = dt.contents[0].extract()
                 time = dt.contents[1].extract()
@@ -79,19 +93,12 @@ class UpdateHandler(webapp.RequestHandler):
                 start = " ".join([date, m.group(1)])
                 end = " ".join([date, m.group(2)])
 
-                info = row.contents[1].p
-                url = info.a['href']
                 title = unicode(info.a.string.extract())
                 title = utils.unescape(title)
                 speaker = unicode(info.getText(separator="\n")) # rest are speaker info
                 speaker = utils.unescape(speaker)
             except Exception, e:
                 logging.error("%s @ %s" % (e, url))
-                continue
-
-            # check if already exist
-            q = Seminar.gql("WHERE url = :url", url=url)
-            if q.count() > 0:
                 continue
 
             # convert date time.
@@ -120,6 +127,16 @@ class NusCsHandler(webapp.RequestHandler):
     def get(self):
         self.response.headers['Content-Type'] = "text/calendar; charset=utf-8"
 
+        # find from cache
+        updated = memcache.get("nuscs_up_to_date")
+        if updated:
+            q = Cache.gql("WHERE site = :site", site="nuscs")
+            c = q.get()
+            if c:
+                self.response.out.write(c.data)
+                return
+
+        # generate now
         cal = Calendar()
         cal.add('prodid', '-//NUS CS Seminars//ronhuang.org//')
         cal.add('version', '2.0')
@@ -143,7 +160,24 @@ class NusCsHandler(webapp.RequestHandler):
 
             cal.add_component(event)
 
-        self.response.out.write(cal.as_string())
+        # generated data
+        data = cal.as_string()
+        encoding = chardet.detect(data)['encoding']
+        data = unicode(data, encoding)
+
+        # store in datastore
+        q = Cache.gql("WHERE site = :site", site="nuscs")
+        c = q.get()
+        if c:
+            c.data = data
+        else:
+            c = Cache(site = "nuscs", data = data)
+        c.put()
+
+        # flag upated
+        memcache.set("nuscs_up_to_date", True)
+
+        self.response.out.write(data)
 
 
 def main():

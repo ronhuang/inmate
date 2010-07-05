@@ -26,11 +26,17 @@
 
 from google.appengine.api import urlfetch
 from google.appengine.ext import db
+from google.appengine.api import memcache
 from icalendar import UTC
 from datetime import datetime
 import logging
 import re
 import chardet
+
+
+class Cache(db.Model):
+    site = db.StringProperty(required=True)
+    data = db.TextProperty(required=True)
 
 
 class Seminar(db.Model):
@@ -102,3 +108,4 @@ class Seminar(db.Model):
             logging.warning("Can't retrive intro from %s\n%s" % (self.url, s))
 
         self.put()
+        memcache.set("nuscs_up_to_date", False)
