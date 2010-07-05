@@ -30,9 +30,23 @@ from google.appengine.api import urlfetch
 from google.appengine.ext import deferred
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, tzinfo, timedelta
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 from models import Seminar
+from icalendar import Calendar, Event
+
+
+class SGT(tzinfo):
+    "Time zone for Singapore"
+
+    def utcoffset(self, dt):
+        return timedelta(hours=8)
+
+    def dst(self, dt):
+        return timedelta(0)
+
+    def tzname(self, dt):
+        return "Asia/Singapore"
 
 
 class UpdateHandler(webapp.RequestHandler):
@@ -91,9 +105,12 @@ class UpdateHandler(webapp.RequestHandler):
 
             # convert date time.
             # sample: July 16, 2010 10.00am
+            sgt = SGT()
             try:
                 start = datetime.strptime(start, "%B %d, %Y %I.%M%p")
+                start = start.replace(tzinfo=sgt)
                 end = datetime.strptime(end, "%B %d, %Y %I.%M%p")
+                end = end.replace(tzinfo=sgt)
             except ValueError, e:
                 logging.error("%s @ %s" % (e, url))
                 continue
@@ -111,7 +128,32 @@ class UpdateHandler(webapp.RequestHandler):
 
 class NusCsHandler(webapp.RequestHandler):
     def get(self):
-        self.response.out.write('NUS CS')
+        self.response.headers['Content-Type'] = "text/calendar; charset=utf-8"
+
+        cal = Calendar()
+        cal.add('prodid', '-//NUS CS Seminars//ronhuang.org//')
+        cal.add('version', '2.0')
+        cal.add('X-WR-CALNAME', 'NUS CS Seminars')
+        cal.add('X-WR-CALDESC', "Seminars are open to the public, and usually held in the School's Seminar Room.")
+
+        q = Seminar.all().order('start')
+        for s in q:
+            event = Event()
+            event['uid'] = s.url
+            event.add('summary', s.title)
+            event.add('dtstart', s.start)
+            event.add('dtend', s.end)
+            event.add('dtstamp', s.stamp)
+            event.add('location', s.venue)
+            event.add('url', s.url)
+            event.add('description', s.intro)
+            event.add('comment', s.speaker)
+            event.add('categories', 'seminar')
+            event.add('class', 'PUBLIC')
+
+            cal.add_component(event)
+
+        self.response.out.write(cal.as_string())
 
 
 def main():
