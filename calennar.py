@@ -84,8 +84,8 @@ class UpdateHandler(webapp.RequestHandler):
         for row in soup:
             try:
                 dt = row.contents[0].p
-                date = unicode(dt.contents[0].extract())
-                time = unicode(dt.contents[1].extract())
+                date = dt.contents[0].extract()
+                time = dt.contents[1].extract()
                 m = split_time.search(time)
                 start = " ".join([date, m.group(1)])
                 end = " ".join([date, m.group(2)])
@@ -93,7 +93,9 @@ class UpdateHandler(webapp.RequestHandler):
                 info = row.contents[1].p
                 url = info.a['href']
                 title = unicode(info.a.string.extract())
-                speaker = info.getText(separator="\n") # rest are speaker info
+                title = utils.unescape(title)
+                speaker = unicode(info.getText(separator="\n")) # rest are speaker info
+                speaker = utils.unescape(speaker)
             except Exception, e:
                 logging.error("%s @ %s" % (e, url))
                 continue
