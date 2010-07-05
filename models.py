@@ -26,6 +26,8 @@
 
 from google.appengine.api import urlfetch
 from google.appengine.ext import db
+from icalendar import UTC
+from datetime import datetime
 import logging
 import re
 import chardet
@@ -35,6 +37,7 @@ class Seminar(db.Model):
     url = db.LinkProperty(required=True)
     start = db.DateTimeProperty(required=True)
     end = db.DateTimeProperty(required=True)
+    stamp = db.DateTimeProperty(auto_now_add=True)
     title = db.StringProperty(required=True)
     speaker = db.TextProperty(required=True)
     venue = db.StringProperty(multiline=True)
@@ -51,6 +54,13 @@ class Seminar(db.Model):
         # check status code
         if result and result.status_code != 200:
             logging.warning("Returned %s when fetching %s" % (result.status_code, self.url))
+
+        # get last-modified as stamp
+        if result and result.header and 'last-modified' in result.header:
+            stamp = result.headers['last-modified']
+            stamp = datetime.strptime(stamp, '%a, %d %b %Y %H:%M:%S %Z')
+            stamp = stamp.replace(tzinfo=UTC)
+            self.stamp = stamp
 
         # detect encoding
         s = result and result.content or ""
