@@ -34,19 +34,7 @@ from datetime import datetime, tzinfo, timedelta
 from BeautifulSoup import BeautifulSoup, SoupStrainer
 from models import Seminar
 from icalendar import Calendar, Event
-
-
-class SGT(tzinfo):
-    "Time zone for Singapore"
-
-    def utcoffset(self, dt):
-        return timedelta(hours=8)
-
-    def dst(self, dt):
-        return timedelta(0)
-
-    def tzname(self, dt):
-        return "Asia/Singapore"
+import utils
 
 
 class UpdateHandler(webapp.RequestHandler):
@@ -73,6 +61,7 @@ class UpdateHandler(webapp.RequestHandler):
 
         # Parse content of the page.
         split_time = re.compile("(.*) - (.*)")
+        sgt = utils.SGT()
         entries = SoupStrainer('tr', bgcolor="#FFFFFF")
         soup = BeautifulSoup(result.content,
                              parseOnlyThese=entries)
@@ -107,7 +96,6 @@ class UpdateHandler(webapp.RequestHandler):
 
             # convert date time.
             # sample: July 16, 2010 10.00am
-            sgt = SGT()
             try:
                 start = datetime.strptime(start, "%B %d, %Y %I.%M%p")
                 start = start.replace(tzinfo=sgt)
