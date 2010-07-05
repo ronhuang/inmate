@@ -38,41 +38,57 @@ class Seminar(db.Model):
     title = db.StringProperty(required=True)
     speaker = db.TextProperty(required=True)
     venue = db.StringProperty(multiline=True)
-    info = db.TextProperty()
+    intro = db.TextProperty()
 
     def fetch_and_put(self):
+        # fetch
         result = None
         try:
             result = urlfetch.fetch(self.url)
         except Exception, e:
-            logging.error("%s @ %s" % (e, self.url))
-            return
+            logging.warning("%s @ %s" % (e, self.url))
 
-        if result.status_code != 200:
-            logging.error("Returned %s when fetching %s" % (result.status_code, self.url))
-            return
+        # check status code
+        if result and result.status_code != 200:
+            logging.warning("Returned %s when fetching %s" % (result.status_code, self.url))
 
-        s = result.content
+        # detect encoding
+        s = result and result.content or ""
         try:
             encoding = chardet.detect(s)['encoding']
             s = unicode(s, encoding)
-            s = re.compile("\r\n", re.M).sub("\n", s) # dos2unix
         except Exception, e:
-            logging.error("%s @ %s" % (e, self.url))
-            return
+            logging.warning("%s @ %s" % (e, self.url))
 
-        # Notes:
-        # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
-        # Ignore case
-        p = re.compile("VENUE\s*:\s*(?P<venue>.+?)\n\n.*(?P<info>(ABS?TRA?CT|SYNOPSIS).+)",
-                       re.M | re.S | re.I)
+        # dos2unix
+        s = re.compile("\r\n", re.M).sub("\n", s)
+        # trim space in front of each line
+        s = re.compile("\n[ \t]+", re.M).sub("\n", s)
+
+        # Extract venue
+        p = re.compile("^VENUE\s*:\s*(?P<venue>.+?)\n\n", re.M | re.S | re.I)
         m = p.search(s)
+        if m:
+            self.venue = m.group("venue").strip()
+        else:
+            logging.warning("Can't retrive venue from %s\n%s" % (self.url, s))
 
-        try:
-            venue = m.group("venue").strip()
-            self.venue = re.compile("\n\s+", re.M).sub("\n", venue) # trim space in each line
-            self.info = m.group("info").strip()
-        except:
-            logging.warning("Can't retrive venue or info from %s\n%s" % (self.url, s))
+        # Extract intro with several methods
+        # Try intro which begins with the following keywords
+        # SYNOPSIS, ABSTRACT, ABTRACT, and ABSTRCT are interchangable
+        p = re.compile("(?P<intro>^(ABS?TRA?CT|SYNOPSIS).+)", re.M | re.S | re.I)
+        m = p.search(s)
+        if not m:
+            # take whatever below "Chaired by"
+            p = re.compile("^Chaired by[^\n]+\n(?P<intro>.+)", re.M | re.S | re.I)
+            m = p.search(s)
+        if not m:
+            # assume intro is the far away from the others.
+            p = re.compile("\n\n\n\n\n(?P<intro>.+)", re.M | re.S | re.I)
+            m = p.search(s)
+        if m:
+            self.intro = m.group("intro").strip()
+        else:
+            logging.warning("Can't retrive intro from %s\n%s" % (self.url, s))
 
         self.put()
