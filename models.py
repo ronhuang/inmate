@@ -56,7 +56,7 @@ class Seminar(db.Model):
             logging.warning("Returned %s when fetching %s" % (result.status_code, self.url))
 
         # get last-modified as stamp
-        if result and result.header and 'last-modified' in result.header:
+        if result and result.headers and ('last-modified' in result.headers):
             stamp = result.headers['last-modified']
             stamp = datetime.strptime(stamp, '%a, %d %b %Y %H:%M:%S %Z')
             stamp = stamp.replace(tzinfo=UTC)
