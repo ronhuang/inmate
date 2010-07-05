@@ -7,6 +7,10 @@ handlers:
 - url: /
   script: home.py
 
+- url: /calennar/update
+  script: calennar.py
+  login: admin
+
 - url: /calennar/.*
   script: calennar.py
 

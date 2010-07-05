@@ -1,0 +1,5 @@
+cron:
+- description: fetch seminar schedule
+  url: /calennar/update
+  schedule: every day 05:00
+  timezone: Asia/Singapore

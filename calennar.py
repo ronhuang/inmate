@@ -35,7 +35,7 @@ from BeautifulSoup import BeautifulSoup, SoupStrainer
 from models import Seminar
 
 
-class NusCsHandler(webapp.RequestHandler):
+class UpdateHandler(webapp.RequestHandler):
     def get(self):
         # Read HTML from seminar page.
         url = "http://www.comp.nus.edu.sg/cs/csseminar.html"
@@ -109,15 +109,15 @@ class NusCsHandler(webapp.RequestHandler):
             deferred.defer(s.fetch_and_put)
 
 
-class NusEceHandler(webapp.RequestHandler):
+class NusCsHandler(webapp.RequestHandler):
     def get(self):
-        self.response.out.write('NUS ECE')
+        self.response.out.write('NUS CS')
 
 
 def main():
     actions = [
+        ('/calennar/update', UpdateHandler),
         ('/calennar/nuscs.ics', NusCsHandler),
-        ('/calennar/nusece.ics', NusEceHandler),
         ]
     application = webapp.WSGIApplication(actions, debug=True)
     util.run_wsgi_app(application)
