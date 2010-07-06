@@ -34,6 +34,11 @@ import re
 import chardet
 
 
+DOS2UNIX = re.compile("\r\n", re.M)
+LTRIM_G = re.compile("\n[ \t]+", re.M)
+EXTRACT_VENUE = re.compile("^VENUE\s*:\s*(?P<venue>.+?)\n\n", re.M | re.S | re.I)
+
+
 class Cache(db.Model):
     site = db.StringProperty(required=True)
     data = db.TextProperty(required=True)
@@ -76,13 +81,12 @@ class Seminar(db.Model):
             logging.warning("%s @ %s" % (e, self.url))
 
         # dos2unix
-        s = re.compile("\r\n", re.M).sub("\n", s)
+        s = DOS2UNIX.sub("\n", s)
         # trim space in front of each line
-        s = re.compile("\n[ \t]+", re.M).sub("\n", s)
+        s = LTRIM_G.sub("\n", s)
 
         # Extract venue
-        p = re.compile("^VENUE\s*:\s*(?P<venue>.+?)\n\n", re.M | re.S | re.I)
-        m = p.search(s)
+        m = EXTRACT_VENUE.search(s)
         if m:
             self.venue = m.group("venue").strip()
         else:
