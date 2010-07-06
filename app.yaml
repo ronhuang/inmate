@@ -7,6 +7,14 @@ handlers:
 - url: /
   script: home.py
 
+- url: /favicon.ico
+  static_files: favicon.ico
+  upload: favicon.ico
+
+- url: /robots.txt
+  static_files: robots.txt
+  upload: robots.txt
+
 - url: /calennar/update
   script: calennar.py
   login: admin
