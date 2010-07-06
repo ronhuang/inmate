@@ -31,12 +31,171 @@ from google.appengine.ext import deferred
 from google.appengine.api import memcache
 import logging
 import re
-from datetime import datetime, tzinfo, timedelta
-from BeautifulSoup import BeautifulSoup, SoupStrainer
+from datetime import datetime
 from models import Seminar, Cache
 from icalendar import Calendar, Event
 import utils
 import chardet
+from sgmllib import SGMLParser
+import htmlentitydefs
+
+
+SGT = utils.SGT()
+SPLIT_TIME = re.compile("(.*) - (.*)")
+
+STATE_DATE = 1
+STATE_TIME = 2
+STATE_TITLE = 3
+STATE_SPEAKER = 4
+
+
+class NusCsParser(SGMLParser):
+    def reset(self):
+        SGMLParser.reset(self)
+        self._in_entry = None
+        self._state = None
+        self._smnr = None
+
+    def unknown_starttag(self, tag, attrs):
+        if tag == "tr":
+            self._in_entry = True
+            self._state = STATE_DATE
+            self._smnr = {}
+        elif self._in_entry and tag == "a":
+            for key, value in attrs:
+                if key == "href":
+                    self._smnr['url'] = value
+                    break
+        elif self._in_entry and self._state == STATE_SPEAKER and tag == "br":
+            if 'speaker' not in self._smnr:
+                self._smnr['speaker'] = []
+            self._smnr['speaker'].append("\n")
+
+    def unknown_endtag(self, tag):
+        if self._in_entry and tag == "tr":
+            self._in_entry = None
+            if "url" not in self._smnr or \
+                    "date" not in self._smnr or \
+                    "time" not in self._smnr or \
+                    "title" not in self._smnr or \
+                    "speaker" not in self._smnr:
+                # might not be in the correct <tr>
+                return
+
+            # check if already exist
+            url = self._smnr['url']
+            exist = memcache.get(url)
+            if exist:
+                return
+            q = Seminar.gql("WHERE url = :url", url=url)
+            if q.count() > 0:
+                memcache.add(url, True)
+                return
+
+            # start and end time
+            date = self._smnr['date']
+            time = self._smnr['time']
+
+            m = SPLIT_TIME.search(time)
+            if not m:
+                # might not be in the correct <tr>
+                return
+
+            start = m.group(1)
+            end = m.group(2)
+            try:
+                # convert time
+                # sample: July 16, 2010 10.00am
+                start = " ".join([date, start])
+                start = datetime.strptime(start, "%B %d, %Y %I.%M%p")
+                start = start.replace(tzinfo=SGT)
+                end = " ".join([date, end])
+                end = datetime.strptime(end, "%B %d, %Y %I.%M%p")
+                end = end.replace(tzinfo=SGT)
+            except Exception, e:
+                # might not be in the correct <tr>
+                logging.error("%s @ %s" % (e, url))
+                return
+
+            # title
+            title = "".join(self._smnr['title'])
+            if len(title) > 0:
+                e = chardet.detect(title)["encoding"]
+                title = unicode(title, e)
+            title = utils.unescape(title)
+
+            # speaker
+            speaker = "".join(self._smnr['speaker'])
+            if len(speaker) > 0:
+                e = chardet.detect(speaker)["encoding"]
+                speaker = unicode(speaker, e)
+            speaker = utils.unescape(speaker)
+
+            # create model
+            s = Seminar(
+                start = start,
+                end = end,
+                title = title,
+                speaker = speaker,
+                url = url,
+                )
+            deferred.defer(s.fetch_and_put)
+
+        elif self._in_entry and tag == "a":
+            if self._state == STATE_TITLE:
+                self._state = STATE_SPEAKER
+
+    def handle_data(self, text):
+        if self._in_entry:
+            if self._state == STATE_DATE:
+                self._smnr['date'] = text
+                self._state = STATE_TIME
+            elif self._state == STATE_TIME:
+                self._smnr['time'] = text
+                self._state = STATE_TITLE
+            elif self._state == STATE_TITLE:
+                if 'title' not in self._smnr:
+                    self._smnr['title'] = []
+                self._smnr['title'].append(text)
+            else: # rest are STATE_SPEAKER
+                if 'speaker' not in self._smnr:
+                    self._smnr['speaker'] = []
+                self._smnr['speaker'].append(text)
+
+    def handle_charref(self, ref):
+        if self._in_entry and (self._state == STATE_TITLE or self._state == STATE_SPEAKER):
+            # called for each character reference, e.g. for "&#160;", ref will be "160"
+            # Reconstruct the original character reference.
+            text = "&#%(ref)s;" % locals()
+
+            if self._state == STATE_TITLE:
+                if 'title' not in self._smnr:
+                    self._smnr['title'] = []
+                self._smnr['title'].append(text)
+            elif self._state == STATE_SPEAKER:
+                if 'speaker' not in self._smnr:
+                    self._smnr['speaker'] = []
+                self._smnr['speaker'].append(text)
+
+    def handle_entityref(self, ref):
+        if self._in_entry and (self._state == STATE_TITLE or self._state == STATE_SPEAKER):
+            # called for each entity reference, e.g. for "&copy;", ref will be "copy"
+            # Reconstruct the original entity reference.
+            # standard HTML entities are closed with a semicolon; other entities are not
+            text = None
+            if htmlentitydefs.entitydefs.has_key(ref):
+                text = "&%(ref)s;" % locals()
+            else:
+                text = "&%(ref)s" % locals()
+
+            if self._state == STATE_TITLE:
+                if 'title' not in self._smnr:
+                    self._smnr['title'] = []
+                self._smnr['title'].append(text)
+            elif self._state == STATE_SPEAKER:
+                if 'speaker' not in self._smnr:
+                    self._smnr['speaker'] = []
+                self._smnr['speaker'].append(text)
 
 
 class UpdateHandler(webapp.RequestHandler):
@@ -62,65 +221,9 @@ class UpdateHandler(webapp.RequestHandler):
             self.error(result.status_code)
 
         # Parse content of the page.
-        split_time = re.compile("(.*) - (.*)")
-        sgt = utils.SGT()
-        entries = SoupStrainer('tr', bgcolor="#FFFFFF")
-        soup = BeautifulSoup(result.content,
-                             parseOnlyThese=entries)
-        start = ""
-        end = ""
-        url = ""
-        title = ""
-        speaker = ""
-        for row in soup:
-            try:
-                info = row.contents[1].p
-                url = info.a['href']
-
-                # check if already exist
-                exist = memcache.get(url)
-                if exist:
-                    continue
-                q = Seminar.gql("WHERE url = :url", url=url)
-                if q.count() > 0:
-                    memcache.add(url, True)
-                    continue
-
-                dt = row.contents[0].p
-                date = dt.contents[0].extract()
-                time = dt.contents[1].extract()
-                m = split_time.search(time)
-                start = " ".join([date, m.group(1)])
-                end = " ".join([date, m.group(2)])
-
-                title = unicode(info.a.string.extract())
-                title = utils.unescape(title)
-                speaker = unicode(info.getText(separator="\n")) # rest are speaker info
-                speaker = utils.unescape(speaker)
-            except Exception, e:
-                logging.error("%s @ %s" % (e, url))
-                continue
-
-            # convert date time.
-            # sample: July 16, 2010 10.00am
-            try:
-                start = datetime.strptime(start, "%B %d, %Y %I.%M%p")
-                start = start.replace(tzinfo=sgt)
-                end = datetime.strptime(end, "%B %d, %Y %I.%M%p")
-                end = end.replace(tzinfo=sgt)
-            except ValueError, e:
-                logging.error("%s @ %s" % (e, url))
-                continue
-
-            s = Seminar(
-                start = start,
-                end = end,
-                title = title,
-                speaker = speaker,
-                url = url
-                )
-
-            deferred.defer(s.fetch_and_put)
+        p = NusCsParser()
+        p.feed(result.content)
+        p.close()
 
 
 class NusCsHandler(webapp.RequestHandler):
