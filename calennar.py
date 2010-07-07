@@ -29,6 +29,7 @@ from google.appengine.ext.webapp import util
 from google.appengine.api import urlfetch
 from google.appengine.ext import deferred
 from google.appengine.api import memcache
+from google.appengine.runtime import DeadlineExceededError
 import logging
 import re
 from datetime import datetime
@@ -197,6 +198,12 @@ class NusCsParser(SGMLParser):
                     self._smnr['speaker'] = []
                 self._smnr['speaker'].append(text)
 
+    def getUrl(self):
+        if self._in_entry and "url" in self._smnr:
+            return self._smnr["url"]
+        else:
+            return "N/A"
+
 
 class UpdateHandler(webapp.RequestHandler):
     def get(self):
@@ -222,8 +229,12 @@ class UpdateHandler(webapp.RequestHandler):
 
         # Parse content of the page.
         p = NusCsParser()
-        p.feed(result.content)
-        p.close()
+        try:
+            p.feed(result.content)
+        except DeadlineExceededError, e:
+            logging.warning("Only made to %s" % p.getUrl())
+        finally:
+            p.close()
 
 
 class NusCsHandler(webapp.RequestHandler):
