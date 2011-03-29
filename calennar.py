@@ -208,7 +208,7 @@ class NusCsParser(SGMLParser):
 class UpdateHandler(webapp.RequestHandler):
     def get(self):
         # Read HTML from seminar page.
-        url = "http://www.comp.nus.edu.sg/cs/csseminar.html"
+        url = "https://mysoc.nus.edu.sg/~cmsem/seminar_files/"
         result = None
         try:
             result = urlfetch.fetch(url)
