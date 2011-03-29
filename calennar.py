@@ -73,7 +73,7 @@ class NusCsParser(SGMLParser):
             self._smnr['speaker'].append("\n")
 
     def unknown_endtag(self, tag):
-        if self._in_entry and tag == "tr":
+        if self._in_entry and self._state == STATE_SPEAKER and tag == "td":
             self._in_entry = None
             if "url" not in self._smnr or \
                     "date" not in self._smnr or \
