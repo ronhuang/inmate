@@ -126,7 +126,10 @@ class NusCsParser(SGMLParser):
             title = utils.unescape(title)
 
             # speaker
-            speaker = "".join(self._smnr['speaker'])
+            sp = self._smnr['speaker']
+            while len(sp) > 0 and sp[0] == "\n":
+                sp.pop(0)
+            speaker = "".join(sp)
             if len(speaker) > 0:
                 e = chardet.detect(speaker)["encoding"]
                 speaker = unicode(speaker, e)
