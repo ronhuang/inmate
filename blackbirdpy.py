@@ -35,9 +35,6 @@ import sys
 import unittest
 import urllib2
 import tweepy
-from configs import CONSUMER_KEY, CONSUMER_SECRET
-from models import TweetAccessToken
-
 
 
 TWEET_EMBED_HTML = u'''<!-- %(tweetURL)s -->
@@ -83,7 +80,7 @@ def tweet_id_from_tweet_url(tweet_url):
         raise ValueError('Invalid tweet URL: %s' % tweet_url)
 
 
-def embed_tweet_html(tweet_url_or_id, extra_css=None):
+def embed_tweet_html(tweet_url_or_id, extra_css=None, api=tweepy.api):
     """Generate embedded HTML for a tweet, given its Twitter URL or ID.  The
     result is formatted in the style of Robin Sloan's Blackbird Pie.
     See: http://media.twitter.com/blackbird-pie
@@ -99,21 +96,10 @@ def embed_tweet_html(tweet_url_or_id, extra_css=None):
     else:
         tweet_id = tweet_id_from_tweet_url(tweet_url_or_id)
 
-    # get twitter access token from server
-    token_key = None
-    token_secret = None
-    query = TweetAccessToken.gql("WHERE name = :name", name="the_only_one")
-    token = query.get()
-    if token:
-        token_key = token.clavis
-        token_secret = token.arcanum
-    else:
-        raise ValueError('Twitter access token unavailable')
-
-    auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-    auth.set_access_token(token_key, token_secret)
-    api = tweepy.API(auth)
-    tweet_json = api.get_status(tweet_id)
+    try:
+        tweet_json = api.get_status(tweet_id)
+    except tweepy.TweepError, e:
+        raise
 
     tweet_text = wrap_user_mention_with_link(
         wrap_hashtag_with_link(

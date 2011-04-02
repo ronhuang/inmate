@@ -48,11 +48,29 @@ class MainHandler(webapp.RequestHandler):
 
 class TweetHandler(webapp.RequestHandler):
     def get(self, tweet_id):
-        try:
-            embed_html = blackbirdpy.embed_tweet_html(tweet_id)
-        except ValueError, e:
-            logging.error("Failed to retrieve embed tweet html: %s", e)
+        # get twitter access token from datastore
+        token_key = None
+        token_secret = None
+        query = TweetAccessToken.gql("WHERE name = :name", name="the_only_one")
+        token = query.get()
+        if token:
+            token_key = token.clavis
+            token_secret = token.arcanum
+        else:
+            logging.error("Twitter access token unavailable")
             self.error(500)
+            return
+
+        # get authorized api
+        auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+        auth.set_access_token(token_key, token_secret)
+        api = tweepy.API(auth)
+
+        try:
+            embed_html = blackbirdpy.embed_tweet_html(tweet_id, None, api)
+        except tweepy.TweepError, e:
+            logging.warning("Failed to retrieve embed tweet (%s) html: %s", tweet_id, e)
+            self.error(404)
             return
 
         self.response.out.write(embed_html)
