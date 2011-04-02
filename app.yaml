@@ -15,12 +15,24 @@ handlers:
   static_files: robots.txt
   upload: robots.txt
 
+# calennar
 - url: /calennar/update
   script: calennar.py
   login: admin
 
 - url: /calennar/.*
   script: calennar.py
+
+# blackbird
+- url: /tweet
+  script: tweet.py
+
+- url: /tweet/setup
+  script: tweet.py
+  login: admin
+
+- url: /tweet/.*
+  script: tweet.py
 
 - url: /_ah/queue/deferred
   script: $PYTHON_LIB/google/appengine/ext/deferred/handler.py

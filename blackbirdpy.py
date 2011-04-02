@@ -28,17 +28,21 @@
 
 import datetime
 import email.utils
-import json
+from django.utils import simplejson as json
 import optparse
 import re
 import sys
 import unittest
 import urllib2
+import tweepy
+from configs import CONSUMER_KEY, CONSUMER_SECRET
+from models import TweetAccessToken
 
 
-TWEET_EMBED_HTML = u'''<!-- {tweetURL} -->
-<style type='text/css'>.bbpBox{id} {{{bbpBoxCss}background:url({profileBackgroundImage}) #{profileBackgroundColor};padding:20px;}} p.bbpTweet{{background:#fff;padding:10px 12px 10px 12px;margin:0;min-height:48px;color:#000;font-size:18px !important;line-height:22px;-moz-border-radius:5px;-webkit-border-radius:5px}} p.bbpTweet span.metadata{{display:block;width:100%;clear:both;margin-top:8px;padding-top:12px;height:40px;border-top:1px solid #fff;border-top:1px solid #e6e6e6}} p.bbpTweet span.metadata span.author{{line-height:19px}} p.bbpTweet span.metadata span.author img{{float:left;margin:0 7px 0 0px;width:38px;height:38px}} p.bbpTweet span.timestamp{{font-size:12px;display:block}}</style>
-<div class='bbpBox{id}'><p class='bbpTweet'>{tweetText}<span class='timestamp'><a title='{timeStamp}' href='{tweetURL}'>{easyTimeStamp}</a> via {source}</span><span class='metadata'><span class='author'><a href='http://twitter.com/{screenName}'><img src='{profilePic}' /></a><strong><a href='http://twitter.com/{screenName}'>{realName}</a></strong><br/>{screenName}</span></span></p></div>
+
+TWEET_EMBED_HTML = u'''<!-- %(tweetURL)s -->
+<style type='text/css'>.bbpBox%(id)s {%(bbpBoxCss)sbackground:url(%(profileBackgroundImage)s) #%(profileBackgroundColor)s;padding:20px;} p.bbpTweet{background:#fff;padding:10px 12px 10px 12px;margin:0;min-height:48px;color:#000;font-size:18px !important;line-height:22px;-moz-border-radius:5px;-webkit-border-radius:5px} p.bbpTweet span.metadata{display:block;width:100%%;clear:both;margin-top:8px;padding-top:12px;height:40px;border-top:1px solid #fff;border-top:1px solid #e6e6e6} p.bbpTweet span.metadata span.author{line-height:19px} p.bbpTweet span.metadata span.author img{float:left;margin:0 7px 0 0px;width:38px;height:38px} p.bbpTweet span.timestamp{font-size:12px;display:block}</style>
+<div class='bbpBox%(id)s'><p class='bbpTweet'>%(tweetText)s<span class='timestamp'><a title='%(timeStamp)s' href='%(tweetURL)s'>%(easyTimeStamp)s</a> via %(source)s</span><span class='metadata'><span class='author'><a href='http://twitter.com/%(screenName)s'><img src='%(profilePic)s' /></a><strong><a href='http://twitter.com/%(screenName)s'>%(realName)s</a></strong><br/>%(screenName)s</span></span></p></div>
 <!-- end of tweet -->'''
 
 
@@ -76,11 +80,11 @@ def tweet_id_from_tweet_url(tweet_url):
     try:
         return match.group(1)
     except AttributeError:
-        raise ValueError('Invalid tweet URL: {0}'.format(tweet_url))
+        raise ValueError('Invalid tweet URL: %s' % tweet_url)
 
 
-def embed_tweet_html(tweet_url, extra_css=None):
-    """Generate embedded HTML for a tweet, given its Twitter URL.  The
+def embed_tweet_html(tweet_url_or_id, extra_css=None):
+    """Generate embedded HTML for a tweet, given its Twitter URL or ID.  The
     result is formatted in the style of Robin Sloan's Blackbird Pie.
     See: http://media.twitter.com/blackbird-pie
 
@@ -89,46 +93,61 @@ def embed_tweet_html(tweet_url, extra_css=None):
     included in the embedded HTML CSS.  Currently only the bbpBox
     class name is used by this feature.
     """
-    tweet_id = tweet_id_from_tweet_url(tweet_url)
-    api_url = 'http://api.twitter.com/1/statuses/show.json?id=' + tweet_id
-    api_handle = urllib2.urlopen(api_url)
-    api_data = api_handle.read()
-    api_handle.close()
-    tweet_json = json.loads(api_data)
+    match = re.match(r'\d+$', tweet_url_or_id)
+    if match:
+        tweet_id = tweet_url_or_id
+    else:
+        tweet_id = tweet_id_from_tweet_url(tweet_url_or_id)
+
+    # get twitter access token from server
+    token_key = None
+    token_secret = None
+    query = TweetAccessToken.gql("WHERE name = :name", name="the_only_one")
+    token = query.get()
+    if token:
+        token_key = token.clavis
+        token_secret = token.arcanum
+    else:
+        raise ValueError('Twitter access token unavailable')
+
+    auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+    auth.set_access_token(token_key, token_secret)
+    api = tweepy.API(auth)
+    tweet_json = api.get_status(tweet_id)
 
     tweet_text = wrap_user_mention_with_link(
         wrap_hashtag_with_link(
             wrap_http_with_link(
-                tweet_json['text'].replace('\n', ' ')
+                tweet_json.text.replace('\n', ' ')
                 )
             )
         )
 
-    tweet_created_datetime = timestamp_string_to_datetime(tweet_json["created_at"])
+    tweet_created_datetime = tweet_json.created_at
     tweet_local_datetime = tweet_created_datetime + (datetime.datetime.now() - datetime.datetime.utcnow())
     tweet_easy_timestamp = easy_to_read_timestamp_string(tweet_local_datetime)
 
     if extra_css is None:
         extra_css = {}
 
-    html = TWEET_EMBED_HTML.format(
-        id=tweet_id,
-        tweetURL=tweet_url,
-        screenName=tweet_json['user']['screen_name'],
-        realName=tweet_json['user']['name'],
-        tweetText=tweet_text,
-        source=tweet_json['source'],
-        profilePic=tweet_json['user']['profile_image_url'],
-        profileBackgroundColor=tweet_json['user']['profile_background_color'],
-        profileBackgroundImage=tweet_json['user']['profile_background_image_url'],
-        profileTextColor=tweet_json['user']['profile_text_color'],
-        profileLinkColor=tweet_json['user']['profile_link_color'],
-        timeStamp=tweet_json['created_at'],
-        easyTimeStamp=tweet_easy_timestamp,
-        utcOffset=tweet_json['user']['utc_offset'],
-        bbpBoxCss=extra_css.get('bbpBox', ''),
-    )
-    return html
+    params = {
+        'id': tweet_id,
+        'tweetURL': 'http://twitter.com/%s/status/%s' % (tweet_json.user.screen_name, tweet_id),
+        'screenName': tweet_json.user.screen_name,
+        'realName': tweet_json.user.name,
+        'tweetText': tweet_text,
+        'source': tweet_json.source,
+        'profilePic': tweet_json.user.profile_image_url,
+        'profileBackgroundColor': tweet_json.user.profile_background_color,
+        'profileBackgroundImage': tweet_json.user.profile_background_image_url,
+        'profileTextColor': tweet_json.user.profile_text_color,
+        'profileLinkColor': tweet_json.user.profile_link_color,
+        'timeStamp': tweet_json.created_at,
+        'easyTimeStamp': tweet_easy_timestamp,
+        'utcOffset': tweet_json.user.utc_offset,
+        'bbpBoxCss': extra_css.get('bbpBox', ''),
+        }
+    return TWEET_EMBED_HTML % params
 
 
 class TestWrapUserMentionWithLink(unittest.TestCase):

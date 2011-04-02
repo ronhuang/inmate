@@ -94,3 +94,10 @@ class Seminar(db.Model):
 
         self.put()
         memcache.set("nuscs_up_to_date", False)
+
+
+class TweetAccessToken(db.Model):
+    name = db.StringProperty(required=True)
+    stamp = db.DateTimeProperty(auto_now=True)
+    clavis = db.StringProperty(required=True)
+    arcanum = db.TextProperty(required=True)
