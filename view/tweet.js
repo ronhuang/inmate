@@ -47,18 +47,22 @@
     });
   };
 
+  function tweetLink(text, href) {
+    return '<a href="' + href + '" rel="nofollow">' + text + '</a>';
+  }
+
   function parseText(text) {
     return text.replace('\n', ' ')
       .replace(/[A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&\?\/.=]+/g, function(url) {
-	    return url.link(url);
+        return tweetLink(url, url);
 	  })
       .replace(/[@]+[A-Za-z0-9-_]+/g, function(u) {
 	    var username = u.replace("@","")
-	    return u.link("http://twitter.com/"+username);
+        return tweetLink(u, 'http://twitter.com/' + username);
 	  })
       .replace(/[#]+[A-Za-z0-9-_]+/g, function(t) {
 	    var tag = t.replace("#","%23")
-	    return t.link("http://twitter.com/search?q="+tag);
+        return tweetLink(t, 'http://twitter.com/search?q=' + tag);
 	  });
   };
 
