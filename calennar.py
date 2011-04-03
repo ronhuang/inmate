@@ -73,7 +73,7 @@ class NusCsParser(SGMLParser):
             self._smnr['speaker'].append("\n")
 
     def unknown_endtag(self, tag):
-        if self._in_entry and tag == "tr":
+        if self._in_entry and self._state == STATE_SPEAKER and tag == "td":
             self._in_entry = None
             if "url" not in self._smnr or \
                     "date" not in self._smnr or \
@@ -126,7 +126,10 @@ class NusCsParser(SGMLParser):
             title = utils.unescape(title)
 
             # speaker
-            speaker = "".join(self._smnr['speaker'])
+            sp = self._smnr['speaker']
+            while len(sp) > 0 and sp[0] == "\n":
+                sp.pop(0)
+            speaker = "".join(sp)
             if len(speaker) > 0:
                 e = chardet.detect(speaker)["encoding"]
                 speaker = unicode(speaker, e)
@@ -208,7 +211,7 @@ class NusCsParser(SGMLParser):
 class UpdateHandler(webapp.RequestHandler):
     def get(self):
         # Read HTML from seminar page.
-        url = "http://www.comp.nus.edu.sg/cs/csseminar.html"
+        url = "https://mysoc.nus.edu.sg/~cmsem/seminar_files/"
         result = None
         try:
             result = urlfetch.fetch(url)
