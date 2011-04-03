@@ -49,11 +49,11 @@
 
   function parseText(text) {
     return text.replace(/\n/g, ' ')
-      .replace(/([A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&\?\/.=]+)/g, '<a href="$1" rel="nofollow">$1</a>')
-      .replace(/(^|\s)@(\w+)/g, '$1<a href="http://twitter.com/$2" rel="nofollow">@$2</a>')
-      .replace(/(\()@(\w+)(,| |\))/g, '$1<a href="http://twitter.com/$2" rel="nofollow">@$2</a>$3')
-      .replace(/(^|\s)#(\w+)/g, '$1<a href="http://twitter.com/search?q=%23$2" rel="nofollow">#$2</a>')
-      .replace(/(\()#(\w+)(,| |\))/g, '$1<a href="http://twitter.com/search?q=%23$2" rel="nofollow">#$2</a>$3');
+      .replace(/([A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&\?\/.=]+)/g, '<a href="$1" target="_blank" rel="nofollow">$1</a>')
+      .replace(/(^|\s)@(\w+)/g, '$1<a href="http://twitter.com/$2" target="_blank" rel="nofollow">@$2</a>')
+      .replace(/(\()@(\w+)(,| |\))/g, '$1<a href="http://twitter.com/$2" target="_blank" rel="nofollow">@$2</a>$3')
+      .replace(/(^|\s)#(\w+)/g, '$1<a href="http://twitter.com/search?q=%23$2" target="_blank" rel="nofollow">#$2</a>')
+      .replace(/(\()#(\w+)(,| |\))/g, '$1<a href="http://twitter.com/search?q=%23$2" target="_blank" rel="nofollow">#$2</a>$3');
   };
 
   // adapted from http://widgets.twimg.com/j/1/widget.js
@@ -136,7 +136,7 @@
     ts.css('font-size', '12px');
     ts.css('display', 'block');
     ts.css('font-family', "'Helvetica Neue', Helvetica, Arial, sans-serif");
-    ts.append($('<a></a>').attr('title', local_ts).attr('href', tweet_url).text(pretty_ts));
+    ts.append($('<a></a>').attr('title', local_ts).attr('target', '_blank').attr('href', tweet_url).text(pretty_ts));
     ts.append(' via ');
     ts.append(data['source']);
     tweet.append(ts);
@@ -155,11 +155,11 @@
     var au = $('<span></span>').addClass('author');
     md.append(au);
 
-    var pf = $('<a></a>').attr('href', profile_url)
+    var pf = $('<a></a>').attr('href', profile_url).attr('target', '_blank')
       .html('<img src="' + user['profile_image_url'] + '" style="float: left; margin: 0 7px 0 0; width: 38px; height: 38px"/>');
     au.append(pf);
 
-    au.append($('<a></a>').addClass('id').attr('href', profile_url).css('font-weight', 'bold').text('@' + user['screen_name']));
+    au.append($('<a></a>').addClass('id').attr('href', profile_url).attr('target', '_blank').css('font-weight', 'bold').text('@' + user['screen_name']));
     au.append($('<br/>'));
     au.append($('<span></span>').addClass('name').css('font-size', '12px').css('color', '#999').text(user['name']));
 
