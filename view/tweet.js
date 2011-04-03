@@ -47,23 +47,13 @@
     });
   };
 
-  function tweetLink(text, href) {
-    return '<a href="' + href + '" rel="nofollow">' + text + '</a>';
-  }
-
   function parseText(text) {
-    return text.replace('\n', ' ')
-      .replace(/[A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&\?\/.=]+/g, function(url) {
-        return tweetLink(url, url);
-	  })
-      .replace(/[@]+[A-Za-z0-9-_]+/g, function(u) {
-	    var username = u.replace("@","")
-        return tweetLink(u, 'http://twitter.com/' + username);
-	  })
-      .replace(/[#]+[A-Za-z0-9-_]+/g, function(t) {
-	    var tag = t.replace("#","%23")
-        return tweetLink(t, 'http://twitter.com/search?q=' + tag);
-	  });
+    return text.replace(/\n/g, ' ')
+      .replace(/([A-Za-z]+:\/\/[A-Za-z0-9-_]+\.[A-Za-z0-9-_:%&\?\/.=]+)/g, '<a href="$1" rel="nofollow">$1</a>')
+      .replace(/(^|\s)@(\w+)/g, '$1<a href="http://twitter.com/$2" rel="nofollow">@$2</a>')
+      .replace(/(\()@(\w+)(,| |\))/g, '$1<a href="http://twitter.com/$2" rel="nofollow">@$2</a>$3')
+      .replace(/(^|\s)#(\w+)/g, '$1<a href="http://twitter.com/search?q=%23$2" rel="nofollow">#$2</a>')
+      .replace(/(\()#(\w+)(,| |\))/g, '$1<a href="http://twitter.com/search?q=%23$2" rel="nofollow">#$2</a>$3');
   };
 
   // adapted from http://widgets.twimg.com/j/1/widget.js
