@@ -91,9 +91,12 @@
     if (d < day) {
       return Math.floor(d / hour) + " hours ago"
     }
-
+    if (d < day * 365) {
+      var v = a.split(' ');
+      return c.getDate() + " " + v[1];
+    }
     var v = a.split(' ');
-    return c.getDate() + " " + v[1];
+    return c.getDate() + ' ' + v[1] + ' ' + c.getFullYear().toString().slice(2);
   };
 
   function localDate(str) {
