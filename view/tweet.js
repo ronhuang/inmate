@@ -113,40 +113,76 @@
 
   function buildEmbedTweet(data) {
     // Format some data
-    var tweet_url = 'http://twitter.com/' + data['user']['screen_name'] + '/status/' + data['id'];
+    var user  = data['user'];
+    var tweet_url = 'http://twitter.com/' + user['screen_name'] + '/status/' + data['id'];
     var local_ts = localDate(data['created_at']);
     var pretty_ts = prettyDate(data['created_at']);
-    var profile_url = 'http://twitter.com/' + data['user']['screen_name'];
+    var profile_url = 'http://twitter.com/' + user['screen_name'];
 
     // build box
-    var box = $('<div></div>').addClass('bbpBox' + {{tweet_id}});
+    var box = $('<div></div>').addClass('bbpBox' + data['id_str']);
+    box.css('background-image', 'url(' + user['profile_background_image_url'] + ')');
+    box.css('background-color', '#' + user['profile_background_color']);
+    box.css('padding', '20px');
+
     var tweet = $('<p></p>').addClass('bbpTweet');
+    tweet.css('background-color', '#FAFAFA');
+    tweet.css('padding', '10px 12px 10px 12px');
+    tweet.css('margin', '0');
+    tweet.css('min-height', '48px');
+    tweet.css('color', '#' + user['profile_text_color']);
+    tweet.css('font-size', '18px !important');
+    tweet.css('-moz-border-radius', '5px');
+    tweet.css('-webkit-border-radius', '5px');
+    tweet.css('line-height', '22px');
+    tweet.css('margin-bottom', '0px');
+    tweet.css('text-align', 'left');
     box.append(tweet);
 
     var text = parseText(data.text);
     tweet.append(text);
 
     var ts = $('<span></span>').addClass('timestamp');
+    ts.css('font-size', '12px');
+    ts.css('display', 'block');
+    ts.css('font-family', "'Helvetica Neue', Helvetica, Arial, sans-serif");
     ts.append($('<a></a>').attr('title', local_ts).attr('href', tweet_url).text(pretty_ts));
     ts.append(' via ');
     ts.append(data['source']);
     tweet.append(ts);
 
     var md = $('<span></span>').addClass('metadata');
+    md.css('display', 'block');
+    md.css('width', '100%');
+    md.css('margin-top', '8px');
+    md.css('padding-top', '12px');
+    md.css('height', '40px');
+    md.css('border-top', '1px solid #e6e6e6');
+    md.css('font-family', "'Helvetica Neue', Helvetica, Arial, sans-serif");
+    md.css('line-height', '19px');
     tweet.append(md);
 
     var au = $('<span></span>').addClass('author');
     md.append(au);
 
-    var pf = $('<a></a>').attr('href', profile_url).html('<img src="' + data['user']['profile_image_url'] + '">');
+    var pf = $('<a></a>').attr('href', profile_url)
+      .html('<img src="' + user['profile_image_url'] + '" style="float: left; margin: 0 7px 0 0; width: 38px; height: 38px"/>');
     au.append(pf);
 
-    au.append($('<a></a>').addClass('id').attr('href', profile_url).text('@' + data['user']['screen_name']));
+    au.append($('<a></a>').addClass('id').attr('href', profile_url).css('font-weight', 'bold').text('@' + user['screen_name']));
     au.append($('<br/>'));
-    au.append($('<span></span>').addClass('name').text(data['user']['name']));
+    au.append($('<span></span>').addClass('name').css('font-size', '12px').css('color', '#999').text(user['name']));
 
     // find script and insert the embed tweet
     $('script[src="http://{{server}}/tweet/{{tweet_id}}"]').after(box);
+
+    // additional style
+    tweet.find('a').css('border-bottom', '0px')
+      .css('font-weight', 'normal')
+      .css('color', '#' + user['profile_link_color']);
+    tweet.find('a').hover(
+      function() {$(this).css('text-decoration', 'underline');},
+      function() {$(this).css('text-decoration', 'none');});
   };
 
 })(); // We call our anonymous function immediately
