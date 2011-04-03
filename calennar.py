@@ -32,7 +32,7 @@ from google.appengine.api import memcache
 from google.appengine.runtime import DeadlineExceededError
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from models import Seminar, Cache
 from icalendar import Calendar, Event
 import utils
@@ -242,6 +242,13 @@ class UpdateHandler(webapp.RequestHandler):
 
 class NusCsHandler(webapp.RequestHandler):
     def get(self):
+        prev = self.request.get('prev', None)
+        if prev != "all":
+            try:
+                prev = int(prev)
+            except:
+                prev = 7 # default one week
+
         self.response.headers['Content-Type'] = "text/calendar; charset=utf-8"
 
         # find from cache
@@ -261,6 +268,8 @@ class NusCsHandler(webapp.RequestHandler):
         cal.add('X-WR-CALDESC', "Seminars are open to the public, and usually held in the School's Seminar Room.")
 
         q = Seminar.all().order('start')
+        if prev != "all":
+            q = q.filter("start >=", datetime.now(SGT) - timedelta(days=prev))
         for s in q:
             event = Event()
             event['uid'] = s.url
