@@ -24,17 +24,24 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 
+from google.appengine.dist import use_library
+use_library('django', '1.2')
+
+import os
 from google.appengine.ext import webapp
 from google.appengine.ext.webapp import util
+from google.appengine.ext.webapp import template
 import logging
 from google.appengine.runtime import DeadlineExceededError
 from google.appengine.api import urlfetch
 from google.appengine.api import memcache
 import blackbirdpy
 import tweepy
+from tweepy.parsers import RawParser
 from configs import CONSUMER_KEY, CONSUMER_SECRET, CALLBACK
-from utils import Cookies
+import utils
 from models import TweetAccessToken
+from validate_jsonp import is_valid_javascript_identifier
 
 
 class MainHandler(webapp.RequestHandler):
@@ -46,7 +53,55 @@ class MainHandler(webapp.RequestHandler):
         else:
             self.redirect("/tweet/setup")
 
+
 class TweetHandler(webapp.RequestHandler):
+    def get(self, tweet_id):
+        # return the javascript code
+        msg = {'tweet_id': tweet_id, 'server': 'inmate.ronhuang.org'}
+        if utils.devel():
+            msg['server'] = 'localhost:8080'
+
+        path = os.path.join(os.path.dirname(__file__), 'view', 'tweet.js')
+        self.response.headers['Content-Type'] = "text/javascript"
+        self.response.out.write(template.render(path, msg))
+
+
+class JsonHandler(webapp.RequestHandler):
+    def get(self, tweet_id):
+        # get twitter access token from datastore
+        token_key = None
+        token_secret = None
+        query = TweetAccessToken.gql("WHERE name = :name", name="the_only_one")
+        token = query.get()
+        if token:
+            token_key = token.clavis
+            token_secret = token.arcanum
+        else:
+            logging.error("Twitter access token unavailable")
+            self.error(500)
+            return
+
+        # get authorized api
+        auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
+        auth.set_access_token(token_key, token_secret)
+        api = tweepy.API(auth_handler=auth, parser=RawParser())
+
+        json_data = api.get_status(tweet_id)
+
+        callback = self.request.get('callback', None)
+        if callback and is_valid_javascript_identifier(callback):
+            self.response.headers['Content-Type'] = 'application/javascript'
+            self.response.out.write("%s(%s)" % (callback, json_data))
+        elif callback:
+            logging.warning("Invalid callback: %s", callback)
+            self.error(500)
+            return
+        else:
+            self.response.headers['Content-Type'] = 'application/json'
+            self.response.out.write(json_data)
+
+
+class IframeTweetHandler(webapp.RequestHandler):
     def get(self, tweet_id):
         # get twitter access token from datastore
         token_key = None
@@ -88,7 +143,7 @@ class SetupHandler(webapp.RequestHandler):
             return
 
         # store the request token for later use in the callback page.
-        cookies = Cookies(self)
+        cookies = utils.Cookies(self)
         cookies["juyh"] = auth.request_token.key
         cookies["jhnm"] = auth.request_token.secret
 
@@ -107,7 +162,7 @@ class CallbackHandler(webapp.RequestHandler):
             return
 
         # lookup the request token
-        cookies = Cookies(self)
+        cookies = utils.Cookies(self)
         token_key = None
         token_secret = None
 
@@ -153,6 +208,7 @@ def main():
     actions = [
         ('/tweet$', MainHandler),
         ('/tweet/([0-9]+)$', TweetHandler),
+        ('/tweet/json/([0-9]+)$', JsonHandler),
         ('/tweet/setup$', SetupHandler),
         ('/tweet/callback$', CallbackHandler),
         ]
