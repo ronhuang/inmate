@@ -24,7 +24,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 
-import re, htmlentitydefs
+import os, re, htmlentitydefs
 from datetime import tzinfo, timedelta
 import UserDict
 from Cookie import BaseCookie
@@ -163,3 +163,7 @@ class Cookies(UserDict.DictMixin):
             raise KeyError(
                 "No cookie has been set with the name %r" % key)
     #end WebOb functions
+
+
+def devel():
+    return os.environ['SERVER_SOFTWARE'].find('Development') != -1
