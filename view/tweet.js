@@ -34,15 +34,6 @@
   /******** Our main function ********/
   function main() {
     jQuery(document).ready(function($) {
-      /******* Load CSS *******/
-      var css_link = $("<link>", {
-        rel: "stylesheet",
-        type: "text/css",
-        href: "style.css"
-      });
-      css_link.appendTo('head');
-
-      /******* Load HTML *******/
       $.getJSON("http://{{server}}/tweet/json/{{tweet_id}}?callback=?", buildEmbedTweet);
     });
   };
