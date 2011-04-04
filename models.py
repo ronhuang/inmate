@@ -26,7 +26,6 @@
 
 from google.appengine.api import urlfetch
 from google.appengine.ext import db
-from google.appengine.api import memcache
 from icalendar import UTC
 from datetime import datetime
 import logging
@@ -42,8 +41,17 @@ EXTRACT_VENUE = re.compile("^VENUE\s*:\s*(?P<venue>.+?)\n\n", re.M | re.S | re.I
 class Cache(db.Model):
     site = db.StringProperty(required=True)
     data = db.TextProperty(required=True)
+    year = db.StringProperty(required=True)
+
+    @classmethod
+    def clear(cls, site):
+        query = Cache.all().filter("site =", site)
+        for cache in query:
+            cache.delete()
 
 
+# Currently, this model only supports seminars from NUS CS.
+# This lacks a field to support seminars from other sites.
 class Seminar(db.Model):
     url = db.LinkProperty(required=True)
     start = db.DateTimeProperty(required=True)
@@ -93,7 +101,9 @@ class Seminar(db.Model):
             logging.warning("Can't retrive venue from %s\n%s" % (self.url, s))
 
         self.put()
-        memcache.set("nuscs_up_to_date", False)
+
+        # Clear cache
+        Cache.clear('nuscs')
 
 
 class TweetAccessToken(db.Model):

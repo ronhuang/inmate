@@ -241,24 +241,17 @@ class UpdateHandler(webapp.RequestHandler):
 
 
 class NusCsHandler(webapp.RequestHandler):
-    def get(self):
-        prev = self.request.get('prev', None)
-        if prev != "all":
-            try:
-                prev = int(prev)
-            except:
-                prev = 7 # default one week
+    def get(self, year='current'):
+        """year can be 'all', 'current', '2002', '2011', etc."""
 
         self.response.headers['Content-Type'] = "text/calendar; charset=utf-8"
 
         # find from cache
-        updated = memcache.get("nuscs_up_to_date")
-        if updated:
-            q = Cache.gql("WHERE site = :site", site="nuscs")
-            c = q.get()
-            if c:
-                self.response.out.write(c.data)
-                return
+        q = Cache.gql("WHERE site = :site AND year = :year", site="nuscs", year=year)
+        c = q.get()
+        if c:
+            self.response.out.write(c.data)
+            return
 
         # generate now
         cal = Calendar()
@@ -268,8 +261,21 @@ class NusCsHandler(webapp.RequestHandler):
         cal.add('X-WR-CALDESC', "Seminars are open to the public, and usually held in the School's Seminar Room.")
 
         q = Seminar.all().order('start')
-        if prev != "all":
-            q = q.filter("start >=", datetime.now(SGT) - timedelta(days=prev))
+        if year != "all":
+            yn = None
+            try:
+                yn = int(year)
+            except:
+                pass
+
+            if yn:
+                # return events within that year
+                q = q.filter("start >=", datetime(yn, 1, 1, tzinfo=SGT))
+                q = q.filter("start <", datetime(yn + 1, 1, 1, tzinfo=SGT))
+            else: #default
+                # return a year of events.
+                q = q.filter("start >=", datetime.now(SGT) - timedelta(days=366))
+
         for s in q:
             event = Event()
             event['uid'] = s.url
@@ -291,24 +297,22 @@ class NusCsHandler(webapp.RequestHandler):
         data = unicode(data, encoding)
 
         # store in datastore
-        q = Cache.gql("WHERE site = :site", site="nuscs")
+        q = Cache.gql("WHERE site = :site AND year = :year", site="nuscs", year=year)
         c = q.get()
         if c:
             c.data = data
         else:
-            c = Cache(site = "nuscs", data = data)
+            c = Cache(site = "nuscs", data = data, year = year)
         c.put()
-
-        # flag upated
-        memcache.set("nuscs_up_to_date", True)
 
         self.response.out.write(data)
 
 
 def main():
     actions = [
-        ('/calennar/update', UpdateHandler),
-        ('/calennar/nuscs.ics', NusCsHandler),
+        ('/calennar/update$', UpdateHandler),
+        ('/calennar/nuscs.ics$', NusCsHandler),
+        ('/calennar/nuscs-(all|current|[0-9]+).ics$', NusCsHandler),
         ]
     application = webapp.WSGIApplication(actions, debug=True)
     util.run_wsgi_app(application)
