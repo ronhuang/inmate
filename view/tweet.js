@@ -3,8 +3,12 @@
   // Localize jQuery variable
   var jQuery;
 
-  /******** Load jQuery if not present *********/
-  if (window.jQuery === undefined || window.jQuery.fn.jquery !== '1.4.2') {
+  /******** Load jQuery if not present or below version 1.4.2 *********/
+  if (window.jQuery === undefined
+      || /1\.(0|1|2|3|4)\.(0|1)/.test(window.jQuery.fn.jquery)
+      || /^1.1/.test(window.jQuery.fn.jquery)
+      || /^1.2/.test(window.jQuery.fn.jquery)
+      || /^1.3/.test(window.jQuery.fn.jquery)) {
     var script_tag = document.createElement('script');
     script_tag.setAttribute("type", "text/javascript");
     script_tag.setAttribute("src", "http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js");
@@ -104,12 +108,12 @@
     var profile_url = 'http://twitter.com/' + user['screen_name'];
 
     // build box
-    var box = $('<div></div>').addClass('bbpBox' + data['id_str']);
+    var box = jQuery('<div></div>').addClass('bbpBox' + data['id_str']);
     box.css('background-image', 'url(' + user['profile_background_image_url'] + ')');
     box.css('background-color', '#' + user['profile_background_color']);
     box.css('padding', '20px');
 
-    var tweet = $('<p></p>').addClass('bbpTweet');
+    var tweet = jQuery('<p></p>').addClass('bbpTweet');
     tweet.css('background-color', '#FAFAFA');
     tweet.css('padding', '10px 12px 10px 12px');
     tweet.css('margin', '0');
@@ -126,16 +130,16 @@
     var text = parseText(data.text);
     tweet.append(text);
 
-    var ts = $('<span></span>').addClass('timestamp');
+    var ts = jQuery('<span></span>').addClass('timestamp');
     ts.css('font-size', '12px');
     ts.css('display', 'block');
     ts.css('font-family', "'Helvetica Neue', Helvetica, Arial, sans-serif");
-    ts.append($('<a></a>').attr('title', local_ts).attr('target', '_blank').attr('href', tweet_url).text(pretty_ts));
+    ts.append(jQuery('<a></a>').attr('title', local_ts).attr('target', '_blank').attr('href', tweet_url).text(pretty_ts));
     ts.append(' via ');
     ts.append(data['source']);
     tweet.append(ts);
 
-    var md = $('<span></span>').addClass('metadata');
+    var md = jQuery('<span></span>').addClass('metadata');
     md.css('display', 'block');
     md.css('width', '100%');
     md.css('margin-top', '8px');
@@ -146,27 +150,27 @@
     md.css('line-height', '19px');
     tweet.append(md);
 
-    var au = $('<span></span>').addClass('author');
+    var au = jQuery('<span></span>').addClass('author');
     md.append(au);
 
-    var pf = $('<a></a>').attr('href', profile_url).attr('target', '_blank')
+    var pf = jQuery('<a></a>').attr('href', profile_url).attr('target', '_blank')
       .html('<img src="' + user['profile_image_url'] + '" style="float: left; margin: 0 7px 0 0; width: 38px; height: 38px"/>');
     au.append(pf);
 
-    au.append($('<a></a>').addClass('id').attr('href', profile_url).attr('target', '_blank').css('font-weight', 'bold').text('@' + user['screen_name']));
-    au.append($('<br/>'));
-    au.append($('<span></span>').addClass('name').css('font-size', '12px').css('color', '#999').text(user['name']));
+    au.append(jQuery('<a></a>').addClass('id').attr('href', profile_url).attr('target', '_blank').css('font-weight', 'bold').text('@' + user['screen_name']));
+    au.append(jQuery('<br/>'));
+    au.append(jQuery('<span></span>').addClass('name').css('font-size', '12px').css('color', '#999').text(user['name']));
 
     // find script and insert the embed tweet
-    $('script[src="http://{{server}}/tweet/{{tweet_id}}"]').after(box);
+    jQuery('script[src="http://{{server}}/tweet/{{tweet_id}}"]').after(box);
 
     // additional style
     tweet.find('a').css('border-bottom', '0px')
       .css('font-weight', 'normal')
       .css('color', '#' + user['profile_link_color']);
     tweet.find('a').hover(
-      function() {$(this).css('text-decoration', 'underline');},
-      function() {$(this).css('text-decoration', 'none');});
+      function() {jQuery(this).css('text-decoration', 'underline');},
+      function() {jQuery(this).css('text-decoration', 'none');});
   };
 
 })(); // We call our anonymous function immediately

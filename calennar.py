@@ -25,7 +25,6 @@
 
 
 from google.appengine.ext import webapp
-from google.appengine.ext.webapp import util
 from google.appengine.api import urlfetch
 from google.appengine.ext import deferred
 from google.appengine.api import memcache
@@ -308,15 +307,8 @@ class NusCsHandler(webapp.RequestHandler):
         self.response.out.write(data)
 
 
-def main():
-    actions = [
+app = webapp.WSGIApplication([
         ('/calennar/update$', UpdateHandler),
         ('/calennar/nuscs.ics$', NusCsHandler),
         ('/calennar/nuscs-(all|current|[0-9]+).ics$', NusCsHandler),
-        ]
-    application = webapp.WSGIApplication(actions, debug=True)
-    util.run_wsgi_app(application)
-
-
-if __name__ == '__main__':
-    main()
+        ], debug=True)

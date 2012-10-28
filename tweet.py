@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2011 Ron Huang
+# Copyright (c) 2012 Ron Huang
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation
@@ -24,24 +24,19 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 
-from google.appengine.dist import use_library
-use_library('django', '0.96')
-
 import os
 from google.appengine.ext import webapp
-from google.appengine.ext.webapp import util
-from google.appengine.ext.webapp import template
 import logging
 from google.appengine.runtime import DeadlineExceededError
 from google.appengine.api import urlfetch
 from google.appengine.api import memcache
-import blackbirdpy
 import tweepy
 from tweepy.parsers import RawParser
 from configs import CONSUMER_KEY, CONSUMER_SECRET, CALLBACK
 import utils
 from models import TweetAccessToken
 from validate_jsonp import is_valid_javascript_identifier
+import jinja2
 
 
 class MainHandler(webapp.RequestHandler):
@@ -54,6 +49,10 @@ class MainHandler(webapp.RequestHandler):
             self.redirect("/tweet/setup")
 
 
+jinja_environment = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
+
+
 class TweetHandler(webapp.RequestHandler):
     def get(self, tweet_id):
         # return the javascript code
@@ -61,9 +60,9 @@ class TweetHandler(webapp.RequestHandler):
         if utils.devel():
             msg['server'] = 'localhost:8080'
 
-        path = os.path.join(os.path.dirname(__file__), 'view', 'tweet.js')
+        template = jinja_environment.get_template('view/tweet.js')
         self.response.headers['Content-Type'] = "text/javascript"
-        self.response.out.write(template.render(path, msg))
+        self.response.out.write(template.render(msg))
 
 
 class JsonHandler(webapp.RequestHandler):
@@ -101,36 +100,6 @@ class JsonHandler(webapp.RequestHandler):
             self.response.out.write(json_data)
 
 
-class IframeTweetHandler(webapp.RequestHandler):
-    def get(self, tweet_id):
-        # get twitter access token from datastore
-        token_key = None
-        token_secret = None
-        query = TweetAccessToken.gql("WHERE name = :name", name="the_only_one")
-        token = query.get()
-        if token:
-            token_key = token.clavis
-            token_secret = token.arcanum
-        else:
-            logging.error("Twitter access token unavailable")
-            self.error(500)
-            return
-
-        # get authorized api
-        auth = tweepy.OAuthHandler(CONSUMER_KEY, CONSUMER_SECRET)
-        auth.set_access_token(token_key, token_secret)
-        api = tweepy.API(auth)
-
-        try:
-            embed_html = blackbirdpy.embed_tweet_html(tweet_id, None, api)
-        except tweepy.TweepError, e:
-            logging.warning("Failed to retrieve embed tweet (%s) html: %s", tweet_id, e)
-            self.error(404)
-            return
-
-        self.response.out.write(embed_html)
-
-
 class SetupHandler(webapp.RequestHandler):
     def get(self):
         # OAuth dance
@@ -143,9 +112,8 @@ class SetupHandler(webapp.RequestHandler):
             return
 
         # store the request token for later use in the callback page.
-        cookies = utils.Cookies(self)
-        cookies["juyh"] = auth.request_token.key
-        cookies["jhnm"] = auth.request_token.secret
+        self.response.set_cookie("juyh", auth.request_token.key)
+        self.response.set_cookie("jhnm", auth.request_token.secret)
 
         self.redirect(url)
 
@@ -162,16 +130,16 @@ class CallbackHandler(webapp.RequestHandler):
             return
 
         # lookup the request token
-        cookies = utils.Cookies(self)
+        cookies = self.request.cookies
         token_key = None
         token_secret = None
 
         if "juyh" in cookies:
-            token_key = cookies["juyh"]
-            del cookies["juyh"]
+            token_key = cookies.get("juyh")
+            self.response.delete_cookie("juyh")
         if "jhnm" in cookies:
-            token_secret = cookies["jhnm"]
-            del cookies["jhnm"]
+            token_secret = cookies.get("jhnm")
+            self.response.delete_cookie("jhnm")
 
         if token_key is None or token_secret is None or oauth_token != token_key:
             # We do not seem to have this request token, show an error.
@@ -204,17 +172,10 @@ class CallbackHandler(webapp.RequestHandler):
         self.redirect("/tweet")
 
 
-def main():
-    actions = [
+app = webapp.WSGIApplication([
         ('/tweet$', MainHandler),
         ('/tweet/([0-9]+)$', TweetHandler),
         ('/tweet/json/([0-9]+)$', JsonHandler),
         ('/tweet/setup$', SetupHandler),
         ('/tweet/callback$', CallbackHandler),
-        ]
-    application = webapp.WSGIApplication(actions, debug=True)
-    util.run_wsgi_app(application)
-
-
-if __name__ == '__main__':
-    main()
+        ], debug=True)

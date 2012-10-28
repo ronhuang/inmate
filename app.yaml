@@ -1,11 +1,22 @@
 application: asylum-inmate-hrd
-version: 1
-runtime: python
+version: 2
+runtime: python27
 api_version: 1
+threadsafe: true
+
+
+libraries:
+- name: jinja2
+  version: latest
+
+
+builtins:
+- deferred: on
+
 
 handlers:
 - url: /
-  script: home.py
+  script: home.app
 
 - url: /favicon.ico
   static_files: favicon.ico
@@ -17,23 +28,19 @@ handlers:
 
 # calennar
 - url: /calennar/update
-  script: calennar.py
+  script: calennar.app
   login: admin
 
 - url: /calennar/.*
-  script: calennar.py
+  script: calennar.app
 
-# blackbird
+# embed tweet
 - url: /tweet
-  script: tweet.py
+  script: tweet.app
 
 - url: /tweet/setup
-  script: tweet.py
+  script: tweet.app
   login: admin
 
 - url: /tweet/.*
-  script: tweet.py
-
-- url: /_ah/queue/deferred
-  script: $PYTHON_LIB/google/appengine/ext/deferred/handler.py
-  login: admin
+  script: tweet.app

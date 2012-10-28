@@ -26,23 +26,19 @@
 
 import os
 from google.appengine.ext import webapp
-from google.appengine.ext.webapp import util
-from google.appengine.ext.webapp import template
+import jinja2
+
+
+jinja_environment = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
 
 
 class MainHandler(webapp.RequestHandler):
     def get(self):
-        path = os.path.join(os.path.dirname(__file__), 'view', 'home.html')
-        self.response.out.write(template.render(path, {}))
+        template = jinja_environment.get_template('view/home.html')
+        self.response.out.write(template.render({}))
 
 
-def main():
-    actions = [
+app = webapp.WSGIApplication([
         ('/', MainHandler),
-        ]
-    application = webapp.WSGIApplication(actions, debug=True)
-    util.run_wsgi_app(application)
-
-
-if __name__ == '__main__':
-    main()
+        ], debug=True)
